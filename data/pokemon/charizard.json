@@ -1,0 +1,17 @@
+{
+    "id": "charizard",
+    "name": "Charizard",
+    "form": "Normal",
+    "types": [
+        "Fire",
+        "Flying"
+    ],
+    "base_stats": {
+        "hp": 78,
+        "attack": 84,
+        "defense": 78,
+        "special_attack": 109,
+        "special_defense": 85,
+        "speed": 100
+    }
+}
