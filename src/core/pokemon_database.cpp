@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -52,12 +53,6 @@ namespace pokemon
 
                 PokemonSpecies species =
                     pokemonSpeciesFromJson(data);
-
-                if (id.empty())
-                {
-                    throw std::runtime_error(
-                        "Pokemon ID cannot be empty.");
-                }
 
                 if (loadedPokemon.contains(id))
                 {

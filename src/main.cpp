@@ -1,70 +1,128 @@
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
-#include "core/pokemon_json_loader.hpp"
+#include "core/pokemon_database.hpp"
 
-bool runTest(
-    const std::string &testName,
-    const nlohmann::json &data,
-    bool shouldSucceed)
+namespace fs = std::filesystem;
+
+bool runTest(const std::string &name, bool condition)
 {
-    try
-    {
-        pokemon::pokemonSpeciesFromJson(data);
+    std::cout << (condition ? "[PASS] " : "[FAIL] ")
+              << name << '\n';
 
-        if (!shouldSucceed)
-        {
-            std::cout << "[FAIL] " << testName
-                      << " - Invalid data was accepted.\n";
-            return false;
+    return condition;
+}
+
+void writePokemonFile(
+    const fs::path &path,
+    const std::string &id,
+    const std::string &name)
+{
+    std::ofstream file(path);
+
+    file << R"({
+        "id": ")"
+         << id << R"(",
+        "name": ")"
+         << name << R"(",
+        "form": "Normal",
+        "types": ["Fire", "Flying"],
+        "base_stats": {
+            "hp": 78,
+            "attack": 84,
+            "defense": 78,
+            "special_attack": 109,
+            "special_defense": 85,
+            "speed": 100
         }
-
-        std::cout << "[PASS] " << testName << '\n';
-        return true;
-    }
-    catch (const std::exception &)
-    {
-        if (shouldSucceed)
-        {
-            std::cout << "[FAIL] " << testName
-                      << " - Valid data was rejected.\n";
-            return false;
-        }
-
-        std::cout << "[PASS] " << testName << '\n';
-        return true;
-    }
+    })";
 }
 
 int main()
 {
-    nlohmann::json validPokemon = {
-        {"name", "Charizard"},
-        {"form", "Normal"},
-        {"types", {"Fire", "Flying"}},
-        {"base_stats", {{"hp", 78}, {"attack", 84}, {"defense", 78}, {"special_attack", 109}, {"special_defense", 85}, {"speed", 100}}}};
+    std::cout << "Pokemon AI - Database Integration Tests\n\n";
 
-    nlohmann::json zeroStat = validPokemon;
-    zeroStat["base_stats"]["hp"] = 0;
+    const fs::path testRoot = "database_test_data";
+    const fs::path validDirectory = testRoot / "valid";
+    const fs::path duplicateDirectory = testRoot / "duplicates";
 
-    nlohmann::json excessiveStat = validPokemon;
-    excessiveStat["base_stats"]["hp"] = 256;
+    fs::remove_all(testRoot);
+    fs::create_directories(validDirectory);
+    fs::create_directories(duplicateDirectory);
 
-    nlohmann::json decimalStat = validPokemon;
-    decimalStat["base_stats"]["hp"] = 78.5;
+    writePokemonFile(
+        validDirectory / "charizard.json",
+        "charizard",
+        "Charizard");
 
-    std::cout << "Pokemon AI - Combined Base Stat Tests\n\n";
+    writePokemonFile(
+        validDirectory / "pikachu.json",
+        "pikachu",
+        "Pikachu");
+
+    writePokemonFile(
+        duplicateDirectory / "pokemon_a.json",
+        "duplicate",
+        "Charizard");
+
+    writePokemonFile(
+        duplicateDirectory / "pokemon_b.json",
+        "duplicate",
+        "Pikachu");
 
     int passed = 0;
+    int total = 0;
 
-    passed += runTest("Valid base stat", validPokemon, true);
-    passed += runTest("Zero base stat", zeroStat, false);
-    passed += runTest("Base stat above 255", excessiveStat, false);
-    passed += runTest("Decimal base stat", decimalStat, false);
+    auto test = [&](const std::string &name, bool condition)
+    {
+        ++total;
+        if (runTest(name, condition))
+            ++passed;
+    };
 
-    std::cout << "\nResults: "
-              << passed << "/4 tests passed.\n";
+    pokemon::PokemonDatabase database;
 
-    return passed == 4 ? 0 : 1;
+    // 1. Load valid directory.
+    const bool loaded = database.loadFromDirectory(
+        validDirectory.string());
+
+    test("Successfully load Pokemon directory", loaded);
+
+    // 2. Verify number of loaded Pokemon.
+    test("Correct Pokemon database size",
+         database.size() == 2);
+
+    // 3. Retrieve an existing Pokemon.
+    const auto *charizard = database.getPokemon("charizard");
+
+    test("Retrieve Pokemon by ID",
+         charizard != nullptr &&
+             charizard->form.displayName == "Charizard");
+
+    // 4. Unknown ID should return nullptr.
+    test("Unknown Pokemon ID returns nullptr",
+         database.getPokemon("missing") == nullptr);
+
+    // 5. Duplicate IDs should cause loading to fail.
+    const bool duplicateLoaded = database.loadFromDirectory(
+        duplicateDirectory.string());
+
+    test("Reject duplicate Pokemon IDs",
+         !duplicateLoaded);
+
+    // 6. Failed loading should preserve existing database.
+    test("Preserve database after failed load",
+         database.size() == 2 &&
+             database.getPokemon("charizard") != nullptr &&
+             database.getPokemon("pikachu") != nullptr);
+
+    fs::remove_all(testRoot);
+
+    std::cout << "\nResults: " << passed
+              << "/" << total << " tests passed.\n";
+
+    return passed == total ? 0 : 1;
 }

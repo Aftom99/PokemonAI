@@ -3,6 +3,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <cstddef>
+#include <string>
 
 #include "pokemon.hpp"
 

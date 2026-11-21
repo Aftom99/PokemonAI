@@ -56,17 +56,30 @@ namespace pokemon
             "Unknown Pokemon type: " + typeName);
     }
 
-    inline std::string getRequiredString(
+    inline const nlohmann::json &getRequiredField(
         const nlohmann::json &data,
         const std::string &fieldName)
     {
+        if (!data.is_object())
+        {
+            throw std::invalid_argument(
+                "Pokemon data must be a JSON object.");
+        }
+
         if (!data.contains(fieldName))
         {
             throw std::invalid_argument(
                 "Missing required field: " + fieldName);
         }
 
-        const auto &value = data.at(fieldName);
+        return data.at(fieldName);
+    }
+
+    inline std::string getRequiredString(
+        const nlohmann::json &data,
+        const std::string &fieldName)
+    {
+        const auto &value = getRequiredField(data, fieldName);
 
         if (!value.is_string())
         {
@@ -147,7 +160,7 @@ namespace pokemon
         const std::string name = getRequiredString(data, "name");
         const std::string form = getRequiredString(data, "form");
 
-        const auto &types = data.at("types");
+        const auto &types = getRequiredField(data, "types");
 
         if (!types.is_array() || types.empty() || types.size() > 2)
         {
@@ -182,7 +195,7 @@ namespace pokemon
                                        ? parseType(types.at(1).get<std::string>())
                                        : Type::Normal;
 
-        const auto &baseStats = data.at("base_stats");
+        const auto &baseStats = getRequiredField(data, "base_stats");
 
         return {
             {name + (form == "Normal" ? "" : " (" + form + ")"), name},
