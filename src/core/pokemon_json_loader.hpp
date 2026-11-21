@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 
 #include <nlohmann/json.hpp>
 
@@ -55,6 +56,85 @@ namespace pokemon
             "Unknown Pokemon type: " + typeName);
     }
 
+    inline std::string getRequiredString(
+        const nlohmann::json &data,
+        const std::string &fieldName)
+    {
+        if (!data.contains(fieldName))
+        {
+            throw std::invalid_argument(
+                "Missing required field: " + fieldName);
+        }
+
+        const auto &value = data.at(fieldName);
+
+        if (!value.is_string())
+        {
+            throw std::invalid_argument(
+                "Field must be a string: " + fieldName);
+        }
+
+        const std::string result = value.get<std::string>();
+
+        if (result.empty())
+        {
+            throw std::invalid_argument(
+                "Field cannot be empty: " + fieldName);
+        }
+
+        return result;
+    }
+
+    inline std::uint16_t parseBaseStat(
+        const nlohmann::json &baseStats,
+        const std::string &statName)
+    {
+        if (!baseStats.is_object())
+        {
+            throw std::invalid_argument(
+                "Pokemon base_stats must be a JSON object.");
+        }
+
+        if (!baseStats.contains(statName))
+        {
+            throw std::invalid_argument(
+                "Missing base stat: " + statName);
+        }
+
+        const auto &value = baseStats.at(statName);
+
+        if (!value.is_number_integer())
+        {
+            throw std::invalid_argument(
+                "Base stat must be an integer: " + statName);
+        }
+
+        if (value.is_number_unsigned())
+        {
+            const std::uint64_t statValue =
+                value.get<std::uint64_t>();
+
+            if (statValue < 1 || statValue > 255)
+            {
+                throw std::invalid_argument(
+                    "Base stat out of valid range (1-255): " + statName);
+            }
+
+            return static_cast<std::uint16_t>(statValue);
+        }
+
+        const std::int64_t statValue =
+            value.get<std::int64_t>();
+
+        if (statValue < 1 || statValue > 255)
+        {
+            throw std::invalid_argument(
+                "Base stat out of valid range (1-255): " + statName);
+        }
+
+        return static_cast<std::uint16_t>(statValue);
+    }
+
     inline PokemonSpecies pokemonSpeciesFromJson(
         const nlohmann::json &data)
     {
@@ -64,8 +144,8 @@ namespace pokemon
                 "Pokemon data must be a JSON object.");
         }
 
-        const std::string name = data.at("name").get<std::string>();
-        const std::string form = data.at("form").get<std::string>();
+        const std::string name = getRequiredString(data, "name");
+        const std::string form = getRequiredString(data, "form");
 
         const auto &types = data.at("types");
 
@@ -75,10 +155,28 @@ namespace pokemon
                 "Pokemon must have one or two types.");
         }
 
+        for (const auto &type : types)
+        {
+            if (!type.is_string())
+            {
+                throw std::invalid_argument(
+                    "Pokemon types must contain strings.");
+            }
+
+            parseType(type.get<std::string>());
+        }
+
         const Type primaryType =
             parseType(types.at(0).get<std::string>());
 
         const bool hasSecondaryType = types.size() == 2;
+
+        if (hasSecondaryType &&
+            types.at(0) == types.at(1))
+        {
+            throw std::invalid_argument(
+                "Pokemon cannot have duplicate types.");
+        }
 
         const Type secondaryType = hasSecondaryType
                                        ? parseType(types.at(1).get<std::string>())
@@ -91,11 +189,11 @@ namespace pokemon
             primaryType,
             secondaryType,
             hasSecondaryType,
-            {baseStats.at("hp").get<std::uint16_t>(),
-             baseStats.at("attack").get<std::uint16_t>(),
-             baseStats.at("defense").get<std::uint16_t>(),
-             baseStats.at("special_attack").get<std::uint16_t>(),
-             baseStats.at("special_defense").get<std::uint16_t>(),
-             baseStats.at("speed").get<std::uint16_t>()}};
+            {parseBaseStat(baseStats, "hp"),
+             parseBaseStat(baseStats, "attack"),
+             parseBaseStat(baseStats, "defense"),
+             parseBaseStat(baseStats, "special_attack"),
+             parseBaseStat(baseStats, "special_defense"),
+             parseBaseStat(baseStats, "speed")}};
     }
 }

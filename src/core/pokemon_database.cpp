@@ -48,8 +48,7 @@ namespace pokemon
                 nlohmann::json data;
                 file >> data;
 
-                const std::string id =
-                    data.at("id").get<std::string>();
+                const std::string id = getRequiredString(data, "id");
 
                 PokemonSpecies species =
                     pokemonSpeciesFromJson(data);
