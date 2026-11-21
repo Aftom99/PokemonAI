@@ -25,6 +25,7 @@ add_executable(PokemonAI
     src/main.cpp
     src/core/pokemon_database.cpp
     src/core/move_database.cpp
+    src/core/ability_database.cpp
 )
 
 target_include_directories(PokemonAI PRIVATE
