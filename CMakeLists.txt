@@ -24,6 +24,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 add_executable(PokemonAI
     src/main.cpp
     src/core/pokemon_database.cpp
+    src/core/move_database.cpp
 )
 
 target_include_directories(PokemonAI PRIVATE

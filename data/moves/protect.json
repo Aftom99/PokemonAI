@@ -1,0 +1,10 @@
+{
+    "id": "protect",
+    "name": "Protect",
+    "type": "Normal",
+    "category": "Status",
+    "power": 0,
+    "accuracy": 0,
+    "priority": 4,
+    "target": "User"
+}

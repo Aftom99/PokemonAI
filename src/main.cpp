@@ -4,74 +4,11 @@
 #include <iostream>
 #include <string>
 
-#include "core/pokemon_database.hpp"
-
-namespace fs = std::filesystem;
-
-bool runTest(const std::string &name, bool condition)
-{
-    std::cout << (condition ? "[PASS] " : "[FAIL] ")
-              << name << '\n';
-
-    return condition;
-}
-
-void writePokemonFile(
-    const fs::path &path,
-    const std::string &id,
-    const std::string &name)
-{
-    std::ofstream file(path);
-
-    file << R"({
-        "id": ")"
-         << id << R"(",
-        "name": ")"
-         << name << R"(",
-        "form": "Normal",
-        "types": ["Fire", "Flying"],
-        "base_stats": {
-            "hp": 78,
-            "attack": 84,
-            "defense": 78,
-            "special_attack": 109,
-            "special_defense": 85,
-            "speed": 100
-        }
-    })";
-}
+#include "core/move_database.hpp"
 
 int main()
 {
-    std::cout << "Pokemon AI - Database Integration Tests\n\n";
-
-    const fs::path testRoot = "database_test_data";
-    const fs::path validDirectory = testRoot / "valid";
-    const fs::path duplicateDirectory = testRoot / "duplicates";
-
-    fs::remove_all(testRoot);
-    fs::create_directories(validDirectory);
-    fs::create_directories(duplicateDirectory);
-
-    writePokemonFile(
-        validDirectory / "charizard.json",
-        "charizard",
-        "Charizard");
-
-    writePokemonFile(
-        validDirectory / "pikachu.json",
-        "pikachu",
-        "Pikachu");
-
-    writePokemonFile(
-        duplicateDirectory / "pokemon_a.json",
-        "duplicate",
-        "Charizard");
-
-    writePokemonFile(
-        duplicateDirectory / "pokemon_b.json",
-        "duplicate",
-        "Pikachu");
+    namespace fs = std::filesystem;
 
     int passed = 0;
     int total = 0;
@@ -79,50 +16,102 @@ int main()
     auto test = [&](const std::string &name, bool condition)
     {
         ++total;
-        if (runTest(name, condition))
+
+        if (condition)
+        {
             ++passed;
+            std::cout << "[PASS] " << name << '\n';
+        }
+        else
+        {
+            std::cout << "[FAIL] " << name << '\n';
+        }
     };
 
-    pokemon::PokemonDatabase database;
+    std::cout << "Pokemon AI - Move Database Tests\n\n";
 
-    // 1. Load valid directory.
-    const bool loaded = database.loadFromDirectory(
-        validDirectory.string());
+    pokemon::MoveDatabase database;
 
-    test("Successfully load Pokemon directory", loaded);
+    // Test 1: Load move directory
+    const bool loaded = database.loadFromDirectory("data/moves");
+    test("Load move directory", loaded);
 
-    // 2. Verify number of loaded Pokemon.
-    test("Correct Pokemon database size",
-         database.size() == 2);
+    // Test 2: Verify database size
+    test("Correct number of loaded moves", database.size() == 2);
 
-    // 3. Retrieve an existing Pokemon.
-    const auto *charizard = database.getPokemon("charizard");
+    // Test 3: Retrieve Flamethrower
+    const pokemon::Move *flamethrower =
+        database.getMove("flamethrower");
 
-    test("Retrieve Pokemon by ID",
-         charizard != nullptr &&
-             charizard->form.displayName == "Charizard");
+    test(
+        "Retrieve Flamethrower",
+        flamethrower != nullptr &&
+            flamethrower->name == "Flamethrower" &&
+            flamethrower->type == pokemon::Type::Fire &&
+            flamethrower->category == pokemon::MoveCategory::Special &&
+            flamethrower->power == 90);
 
-    // 4. Unknown ID should return nullptr.
-    test("Unknown Pokemon ID returns nullptr",
-         database.getPokemon("missing") == nullptr);
+    // Test 4: Retrieve Protect
+    const pokemon::Move *protect = database.getMove("protect");
 
-    // 5. Duplicate IDs should cause loading to fail.
-    const bool duplicateLoaded = database.loadFromDirectory(
-        duplicateDirectory.string());
+    test(
+        "Retrieve Protect",
+        protect != nullptr &&
+            protect->name == "Protect" &&
+            protect->type == pokemon::Type::Normal &&
+            protect->category == pokemon::MoveCategory::Status &&
+            protect->power == 0 &&
+            protect->priority == 4 &&
+            protect->target == pokemon::MoveTarget::User);
 
-    test("Reject duplicate Pokemon IDs",
-         !duplicateLoaded);
+    // Test 5: Unknown move
+    test(
+        "Unknown move returns nullptr",
+        database.getMove("nonexistent_move") == nullptr);
 
-    // 6. Failed loading should preserve existing database.
-    test("Preserve database after failed load",
-         database.size() == 2 &&
-             database.getPokemon("charizard") != nullptr &&
-             database.getPokemon("pikachu") != nullptr);
+    // Prepare a directory containing duplicate move IDs
+    const fs::path duplicateDirectory =
+        fs::temp_directory_path() / "pokemon_ai_duplicate_moves";
 
-    fs::remove_all(testRoot);
+    fs::remove_all(duplicateDirectory);
+    fs::create_directories(duplicateDirectory);
 
-    std::cout << "\nResults: " << passed
-              << "/" << total << " tests passed.\n";
+    const std::string duplicateMoveJson = R"({
+        "id": "duplicate_move",
+        "name": "Test Move",
+        "type": "Normal",
+        "category": "Physical",
+        "power": 40,
+        "accuracy": 100,
+        "priority": 0,
+        "target": "SingleOpponent"
+    })";
+
+    {
+        std::ofstream first(duplicateDirectory / "first.json");
+        first << duplicateMoveJson;
+
+        std::ofstream second(duplicateDirectory / "second.json");
+        second << duplicateMoveJson;
+    }
+
+    // Test 6: Reject duplicate IDs
+    const bool duplicateLoaded =
+        database.loadFromDirectory(duplicateDirectory.string());
+
+    test("Reject duplicate move IDs", !duplicateLoaded);
+
+    // Test 7: Preserve existing database after failed load
+    test(
+        "Preserve database after failed load",
+        database.size() == 2 &&
+            database.getMove("flamethrower") != nullptr &&
+            database.getMove("protect") != nullptr);
+
+    fs::remove_all(duplicateDirectory);
+
+    std::cout << "\nResults: " << passed << "/" << total
+              << " tests passed.\n";
 
     return passed == total ? 0 : 1;
 }
